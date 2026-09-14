@@ -2,18 +2,62 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Precificação 3D</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
+    /* CSS DE IMPRESSÃO - OCULTA TUDO EXCETO O ORÇAMENTO */
     @media print {
-      @page { margin: 1.5cm; size: A4; }
-      .no-print { display: none !important; }
-      body { background: white; }
+      @page { 
+        margin: 1cm; 
+        size: A4; 
+      }
+      
+      /* Oculta TODOS os elementos exceto o orçamento */
+      body * {
+        visibility: hidden;
+      }
+      
+      /* Mostra apenas o container do orçamento */
+      #printable-quote,
+      #printable-quote * {
+        visibility: visible;
+      }
+      
+      /* Posiciona o orçamento no topo da página */
+      #printable-quote {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+        border: none;
+      }
+      
+      /* Oculta elementos específicos */
+      .no-print,
+      aside,
+      nav,
+      button,
+      .sticky {
+        display: none !important;
+      }
+      
+      /* Remove fundos e cores desnecessárias */
+      body {
+        background: white !important;
+        color: black !important;
+      }
+      
+      /* Garante quebras de página limpas */
+      table, tr, td, th {
+        page-break-inside: avoid;
+      }
     }
   </style>
 </head>
@@ -27,8 +71,8 @@
       const icons = {
         Printer: <path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2v6H6v-6z"/>,
         Settings: <path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/>,
-        Eye: <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>,
-        FileText: <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+        Eye: <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>,
+        FileText: <><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></>
       };
       return <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{icons[name]}</svg>;
     };
@@ -41,7 +85,7 @@
       
       const [data, setData] = useState({
         productName: 'Suporte Articulado',
-        description: 'Impresso em PETG',
+        description: 'Impresso em PETG com parafusos embutidos.',
         quantity: 1,
         pricePerKg: 110,
         weight: 150,
@@ -57,7 +101,7 @@
         prepRate: 20,
         finishingMins: 30,
         finishingRate: 20,
-        components: [{name: 'Parafuso', qty: 4, price: 0.50}],
+        components: [{name: 'Parafuso M4', qty: 4, price: 0.50}],
         deliveryCost: 15,
         deliveryCharged: 15,
         reservePercent: 10,
@@ -78,32 +122,82 @@
       }, [data, isLoaded]);
 
       const calc = useMemo(() => {
-        const filamentCost = ((data.weight + data.purgeWeight) * data.pricePerKg) / 1000;
+        const filamentCost = ((parseFloat(data.weight) + parseFloat(data.purgeWeight)) * parseFloat(data.pricePerKg)) / 1000;
         const printHours = parseFloat(data.hours) + parseFloat(data.minutes) / 60;
-        const machineCost = printHours * data.machineCostPerHour;
-        const energyCost = data.energyKwh * data.energyTariff;
-        const laborCost = (data.modelingHours * data.modelingRate) + ((data.prepMins + data.finishingMins) / 60 * 20);
-        const compCost = data.components.reduce((a, c) => a + (c.qty * c.price), 0);
+        const machineCost = printHours * parseFloat(data.machineCostPerHour);
+        const energyCost = parseFloat(data.energyKwh) * parseFloat(data.energyTariff);
+        const laborCost = (parseFloat(data.modelingHours) * parseFloat(data.modelingRate)) + 
+                         ((parseFloat(data.prepMins) + parseFloat(data.finishingMins)) / 60 * 20);
+        const compCost = data.components.reduce((a, c) => a + (parseFloat(c.qty) * parseFloat(c.price)), 0);
         
         const subtotal = filamentCost + machineCost + energyCost + laborCost + compCost;
-        const reserve = subtotal * (data.reservePercent / 100);
+        const reserve = subtotal * (parseFloat(data.reservePercent) / 100);
         const realCost = subtotal + reserve;
-        const unitPrice = realCost * (1 + data.profitPercent / 100);
-        const totalProducts = unitPrice * data.quantity;
+        const unitPrice = realCost * (1 + parseFloat(data.profitPercent) / 100);
+        const totalProducts = unitPrice * parseInt(data.quantity);
         const totalOrder = totalProducts + parseFloat(data.deliveryCharged);
         
         return { filamentCost, machineCost, energyCost, laborCost, compCost, subtotal, reserve, realCost, unitPrice, totalProducts, totalOrder };
       }, [data]);
 
-      const handlePrint = () => window.print();
+      const handlePrint = () => {
+        window.print();
+      };
 
       if (!isLoaded) return <div className="p-8 text-center">Carregando...</div>;
 
       return (
-        <div className="min-h-screen bg-slate-50">
-          {/* BOTÕES DE NAVEGAÇÃO */}
-          <div className="no-print sticky top-0 z-50 bg-white shadow-md p-4">
-            <div className="max-w-4xl mx-auto flex gap-2 justify-center">
+        <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
+          {/* SIDEBAR - OCULTA NA IMPRESSÃO */}
+          <aside className="no-print w-full md:w-96 bg-white md:border-r border-slate-200 md:h-screen overflow-y-auto">
+            <div className="p-5 bg-slate-900 text-white sticky top-0 z-20">
+              <h1 className="text-lg font-bold flex items-center gap-2"><Icon name="Settings" size={20}/> Configuração</h1>
+            </div>
+
+            <div className="p-5 space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Produto</label>
+                <input type="text" value={data.productName} onChange={e => setData({...data, productName: e.target.value})} className="w-full border rounded p-2 mt-1"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Quantidade</label>
+                <input type="number" value={data.quantity} onChange={e => setData({...data, quantity: e.target.value})} className="w-full border rounded p-2 mt-1"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Peso (g)</label>
+                <input type="number" value={data.weight} onChange={e => setData({...data, weight: e.target.value})} className="w-full border rounded p-2 mt-1"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Purga (g)</label>
+                <input type="number" value={data.purgeWeight} onChange={e => setData({...data, purgeWeight: e.target.value})} className="w-full border rounded p-2 mt-1"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Preço Filamento (R$/kg)</label>
+                <input type="number" value={data.pricePerKg} onChange={e => setData({...data, pricePerKg: e.target.value})} className="w-full border rounded p-2 mt-1"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Tempo (horas)</label>
+                <input type="number" value={data.hours} onChange={e => setData({...data, hours: e.target.value})} className="w-full border rounded p-2 mt-1"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Custo Máquina (R$/h)</label>
+                <input type="number" step="0.1" value={data.machineCostPerHour} onChange={e => setData({...data, machineCostPerHour: e.target.value})} className="w-full border rounded p-2 mt-1"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Margem de Lucro (%)</label>
+                <input type="number" value={data.profitPercent} onChange={e => setData({...data, profitPercent: e.target.value})} className="w-full border rounded p-2 mt-1"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Frete Cobrado (R$)</label>
+                <input type="number" value={data.deliveryCharged} onChange={e => setData({...data, deliveryCharged: e.target.value})} className="w-full border rounded p-2 mt-1"/>
+              </div>
+            </div>
+          </aside>
+
+          {/* CONTEÚDO PRINCIPAL */}
+          <main className="flex-1 p-4 md:p-8">
+            {/* BOTÕES DE NAVEGAÇÃO - OCULTOS NA IMPRESSÃO */}
+            <div className="no-print mb-6 flex gap-2 justify-center">
               <button onClick={() => setViewMode('internal')} className={`px-6 py-2 rounded-lg font-semibold flex items-center gap-2 ${viewMode === 'internal' ? 'bg-slate-800 text-white' : 'bg-gray-200'}`}>
                 <Icon name="Eye" size={18}/> Visão Interna
               </button>
@@ -111,82 +205,50 @@
                 <Icon name="FileText" size={18}/> Visão do Cliente
               </button>
             </div>
-          </div>
 
-          <div className="max-w-4xl mx-auto p-4 md:p-8">
             {viewMode === 'internal' ? (
-              <div className="bg-white rounded-xl shadow-lg p-6 space-y-6">
-                <h2 className="text-2xl font-bold text-slate-800 mb-4">Configuração de Custos</h2>
-                
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Produto</label>
-                    <input type="text" value={data.productName} onChange={e => setData({...data, productName: e.target.value})} className="w-full border rounded p-2 mt-1"/>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Quantidade</label>
-                    <input type="number" value={data.quantity} onChange={e => setData({...data, quantity: e.target.value})} className="w-full border rounded p-2 mt-1"/>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Peso (g)</label>
-                    <input type="number" value={data.weight} onChange={e => setData({...data, weight: e.target.value})} className="w-full border rounded p-2 mt-1"/>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Purga (g)</label>
-                    <input type="number" value={data.purgeWeight} onChange={e => setData({...data, purgeWeight: e.target.value})} className="w-full border rounded p-2 mt-1"/>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Preço Filamento (R$/kg)</label>
-                    <input type="number" value={data.pricePerKg} onChange={e => setData({...data, pricePerKg: e.target.value})} className="w-full border rounded p-2 mt-1"/>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Tempo (horas)</label>
-                    <input type="number" value={data.hours} onChange={e => setData({...data, hours: e.target.value})} className="w-full border rounded p-2 mt-1"/>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Custo Máquina (R$/h)</label>
-                    <input type="number" step="0.1" value={data.machineCostPerHour} onChange={e => setData({...data, machineCostPerHour: e.target.value})} className="w-full border rounded p-2 mt-1"/>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Margem de Lucro (%)</label>
-                    <input type="number" value={data.profitPercent} onChange={e => setData({...data, profitPercent: e.target.value})} className="w-full border rounded p-2 mt-1"/>
-                  </div>
-                </div>
-
-                <div className="bg-slate-100 p-4 rounded-lg mt-6">
-                  <h3 className="font-bold text-lg mb-2">Resumo do Cálculo</h3>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between"><span>Material:</span><span>{formatCurrency(calc.filamentCost)}</span></div>
-                    <div className="flex justify-between"><span>Máquina:</span><span>{formatCurrency(calc.machineCost)}</span></div>
-                    <div className="flex justify-between"><span>Energia:</span><span>{formatCurrency(calc.energyCost)}</span></div>
-                    <div className="flex justify-between"><span>Mão de obra:</span><span>{formatCurrency(calc.laborCost)}</span></div>
-                    <div className="flex justify-between font-bold border-t pt-2 mt-2"><span>Custo Real:</span><span>{formatCurrency(calc.realCost)}</span></div>
-                    <div className="flex justify-between text-xl font-bold text-blue-600"><span>Preço Unitário:</span><span>{formatCurrency(calc.unitPrice)}</span></div>
-                    <div className="flex justify-between text-2xl font-bold text-green-600 mt-2"><span>TOTAL:</span><span>{formatCurrency(calc.totalOrder)}</span></div>
-                  </div>
+              <div className="bg-white rounded-xl shadow-lg p-6 max-w-4xl mx-auto">
+                <h2 className="text-2xl font-bold text-slate-800 mb-4">Resumo do Cálculo</h2>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span>Material:</span><span>{formatCurrency(calc.filamentCost)}</span></div>
+                  <div className="flex justify-between"><span>Máquina:</span><span>{formatCurrency(calc.machineCost)}</span></div>
+                  <div className="flex justify-between"><span>Energia:</span><span>{formatCurrency(calc.energyCost)}</span></div>
+                  <div className="flex justify-between"><span>Mão de obra:</span><span>{formatCurrency(calc.laborCost)}</span></div>
+                  <div className="flex justify-between font-bold border-t pt-2 mt-2"><span>Custo Real:</span><span>{formatCurrency(calc.realCost)}</span></div>
+                  <div className="flex justify-between text-xl font-bold text-blue-600"><span>Preço Unitário:</span><span>{formatCurrency(calc.unitPrice)}</span></div>
+                  <div className="flex justify-between text-2xl font-bold text-green-600 mt-2"><span>TOTAL:</span><span>{formatCurrency(calc.totalOrder)}</span></div>
                 </div>
               </div>
             ) : (
-              <div>
-                {/* BOTÃO DE IMPRESSÃO - VISÍVEL E DESTACADO */}
+              <div className="max-w-4xl mx-auto">
+                {/* BOTÃO DE IMPRESSÃO - OCULTO NA IMPRESSÃO */}
                 <div className="no-print mb-6 flex justify-center">
-                  <button onClick={handlePrint} className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-xl shadow-xl font-bold text-lg flex items-center gap-3 transition-all transform hover:scale-105">
+                  <button onClick={handlePrint} className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-xl shadow-xl font-bold text-lg flex items-center gap-3">
                     <Icon name="Printer" size={24}/>
                     IMPRIMIR / SALVAR PDF
                   </button>
                 </div>
 
-                {/* ORÇAMENTO */}
-                <div className="bg-white rounded-xl shadow-lg p-8 md:p-12">
+                {/* ORÇAMENTO - ÚNICO ELEMENTO VISÍVEL NA IMPRESSÃO */}
+                <div id="printable-quote" className="bg-white rounded-xl shadow-lg p-8 md:p-12">
                   <div className="border-b-2 border-gray-800 pb-6 mb-8">
-                    <h1 className="text-4xl font-black text-gray-900">ORÇAMENTO</h1>
-                    <p className="text-gray-500 mt-2">Ref: #{Math.floor(Math.random() * 10000)} • Data: {new Date().toLocaleDateString('pt-BR')}</p>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h1 className="text-4xl font-black text-gray-900">ORÇAMENTO</h1>
+                        <p className="text-gray-500 mt-2">Ref: #{Math.floor(Math.random() * 10000)} • Data: {new Date().toLocaleDateString('pt-BR')}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-xl">J.3D Studio</div>
+                        <p className="text-sm text-gray-500">Impressão 3D Profissional</p>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-8 mb-8">
                     <div>
                       <h3 className="text-xs font-bold uppercase text-gray-400 mb-2">Para</h3>
-                      <p className="font-semibold text-lg">Cliente</p>
+                      <p className="font-semibold text-lg">Cliente Exemplo</p>
+                      <p className="text-sm text-gray-600">contato@exemplo.com</p>
                     </div>
                     <div>
                       <h3 className="text-xs font-bold uppercase text-gray-400 mb-2">Condições</h3>
@@ -199,7 +261,7 @@
                   <table className="w-full mb-8">
                     <thead>
                       <tr className="border-b-2 border-gray-800">
-                        <th className="text-left py-3 font-bold">Item</th>
+                        <th className="text-left py-3 font-bold">Item / Descrição</th>
                         <th className="text-center py-3 font-bold">Qtd</th>
                         <th className="text-right py-3 font-bold">V. Unitário</th>
                         <th className="text-right py-3 font-bold">Subtotal</th>
@@ -227,7 +289,7 @@
                   <div className="flex justify-end">
                     <div className="w-64 space-y-2">
                       <div className="flex justify-between text-gray-600">
-                        <span>Subtotal</span>
+                        <span>Subtotal Itens</span>
                         <span>{formatCurrency(calc.totalProducts)}</span>
                       </div>
                       <div className="flex justify-between text-gray-600">
@@ -244,17 +306,21 @@
                   <div className="mt-12 pt-8 border-t border-gray-300 grid grid-cols-2 gap-8">
                     <div className="text-center">
                       <div className="border-b border-gray-400 mb-2 h-10"></div>
-                      <p className="text-xs text-gray-600">Assinatura</p>
+                      <p className="text-xs text-gray-600">Assinatura do Responsável</p>
                     </div>
                     <div className="text-center">
                       <div className="border-b border-gray-400 mb-2 h-10"></div>
                       <p className="text-xs text-gray-600">Cliente (De Acordo)</p>
                     </div>
                   </div>
+
+                  <div className="mt-8 p-4 bg-gray-50 rounded text-xs text-gray-500 text-center border border-gray-200">
+                    Este orçamento não inclui custos não mencionados explicitamente. A produção inicia apenas após a confirmação do pagamento acordado.
+                  </div>
                 </div>
               </div>
             )}
-          </div>
+          </main>
         </div>
       );
     };
