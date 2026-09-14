@@ -3,13 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Precificação 3D</title>
+  <title>Precificação 3D | Bambu A1</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
-    /* Garante que a impressão seja sempre limpa, sem fundos de navegador */
     @media print {
       @page { margin: 1.5cm; size: A4; }
       body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -37,7 +36,7 @@
     const App = () => {
       const [viewMode, setViewMode] = useState('internal');
       const [isLoaded, setIsLoaded] = useState(false);
-      const [isPrinting, setIsPrinting] = useState(false); // NOVO: Controla o modo de impressão
+      const [isPrinting, setIsPrinting] = useState(false);
       
       const [data, setData] = useState({
         productName: 'Suporte Articulado',
@@ -49,14 +48,14 @@
         hours: 4,
         minutes: 30,
         machineCostPerHour: 1.50,
-        energyKwh: 1.2,
+        energyKwhTotal: 1.2, // Renomeado para clareza: é o total da impressão
         energyTariff: 0.95,
         modelingHours: 1,
         modelingRate: 50,
         prepMins: 15,
-        prepRate: 20,
+        prepRate: 25, // Corrigido para valor realista
         finishingMins: 30,
-        finishingRate: 20,
+        finishingRate: 25, // Corrigido para valor realista
         components: [{name: 'Parafuso M4', qty: 4, price: 0.50}],
         deliveryCost: 15,
         deliveryCharged: 15,
@@ -77,50 +76,75 @@
         if (isLoaded) localStorage.setItem('bambuData', JSON.stringify(data));
       }, [data, isLoaded]);
 
+      // CÁLCULO AUDITADO E CORRIGIDO
       const calc = useMemo(() => {
-        const filamentCost = ((parseFloat(data.weight) + parseFloat(data.purgeWeight)) * parseFloat(data.pricePerKg)) / 1000;
-        const printHours = parseFloat(data.hours) + parseFloat(data.minutes) / 60;
-        const machineCost = printHours * parseFloat(data.machineCostPerHour);
-        const energyCost = parseFloat(data.energyKwh) * parseFloat(data.energyTariff);
-        const laborCost = (parseFloat(data.modelingHours) * parseFloat(data.modelingRate)) + 
-                         ((parseFloat(data.prepMins) + parseFloat(data.finishingMins)) / 60 * 20);
-        const compCost = data.components.reduce((a, c) => a + (parseFloat(c.qty) * parseFloat(c.price)), 0);
+        const w = parseFloat(data.weight) || 0;
+        const pw = parseFloat(data.purgeWeight) || 0;
+        const pKg = parseFloat(data.pricePerKg) || 0;
+        const h = parseFloat(data.hours) || 0;
+        const m = parseFloat(data.minutes) || 0;
+        const mch = parseFloat(data.machineCostPerHour) || 0;
+        const eKwh = parseFloat(data.energyKwhTotal) || 0;
+        const eTariff = parseFloat(data.energyTariff) || 0;
+        const modH = parseFloat(data.modelingHours) || 0;
+        const modR = parseFloat(data.modelingRate) || 0;
+        const prepM = parseFloat(data.prepMins) || 0;
+        const prepR = parseFloat(data.prepRate) || 0;
+        const finM = parseFloat(data.finishingMins) || 0;
+        const finR = parseFloat(data.finishingRate) || 0;
+        const resP = parseFloat(data.reservePercent) || 0;
+        const profP = parseFloat(data.profitPercent) || 0;
+        const qty = parseInt(data.quantity) || 1;
+        const delCharged = parseFloat(data.deliveryCharged) || 0;
+
+        // 1. Filamento
+        const filamentCost = ((w + pw) * pKg) / 1000;
         
+        // 2. Máquina
+        const printHours = h + (m / 60);
+        const machineCost = printHours * mch;
+        
+        // 3. Energia
+        const energyCost = eKwh * eTariff;
+        
+        // 4. Mão de Obra (CORRIGIDO: usa as taxas individuais, não hardcoded)
+        const laborModeling = modH * modR;
+        const laborPrep = (prepM / 60) * prepR;
+        const laborFinishing = (finM / 60) * finR;
+        const laborCost = laborModeling + laborPrep + laborFinishing;
+        
+        // 5. Componentes
+        const compCost = data.components.reduce((a, c) => a + ((parseFloat(c.qty) || 0) * (parseFloat(c.price) || 0)), 0);
+        
+        // 6. Subtotal e Reserva
         const subtotal = filamentCost + machineCost + energyCost + laborCost + compCost;
-        const reserve = subtotal * (parseFloat(data.reservePercent) / 100);
+        const reserve = subtotal * (resP / 100);
         const realCost = subtotal + reserve;
-        const unitPrice = realCost * (1 + parseFloat(data.profitPercent) / 100);
-        const totalProducts = unitPrice * parseInt(data.quantity);
-        const totalOrder = totalProducts + parseFloat(data.deliveryCharged);
         
-        return { filamentCost, machineCost, energyCost, laborCost, compCost, subtotal, reserve, realCost, unitPrice, totalProducts, totalOrder };
+        // 7. Preço de Venda
+        const unitPrice = realCost * (1 + (profP / 100));
+        const totalProducts = unitPrice * qty;
+        const totalOrder = totalProducts + delCharged;
+        
+        return { 
+          filamentCost, machineCost, energyCost, laborCost, compCost, 
+          subtotal, reserve, realCost, unitPrice, totalProducts, totalOrder 
+        };
       }, [data]);
 
-      // LÓGICA DE IMPRESSÃO 100% ROBUSTA
       const handlePrint = () => {
-        // 1. Muda o estado para renderizar APENAS a folha de orçamento
         setIsPrinting(true);
-        
-        // 2. Aguarda o React atualizar o DOM (100ms é suficiente)
         setTimeout(() => {
-          // 3. Aciona a impressão do navegador
           window.print();
-          
-          // 4. Restaura a tela normal após a impressão
           const restoreView = () => {
             setIsPrinting(false);
             window.removeEventListener('afterprint', restoreView);
           };
-          
-          // Ouve o evento nativo de fechamento da janela de impressão
           window.addEventListener('afterprint', restoreView);
-          
-          // Fallback de segurança para navegadores móveis que não disparam 'afterprint'
           setTimeout(restoreView, 2000);
         }, 100);
       };
 
-      // SE ESTIVER IMPRIMINDO, RENDERIZA APENAS A FOLHA LIMPA (Sem sidebar, sem botões)
       if (isPrinting) {
         return (
           <div className="fixed inset-0 bg-white z-50 overflow-auto p-8 md:p-12">
@@ -135,7 +159,6 @@
                   <p className="text-sm text-gray-500">Impressão 3D Profissional</p>
                 </div>
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                 <div>
                   <h3 className="text-xs font-bold uppercase text-gray-400 mb-2">Para</h3>
@@ -149,7 +172,6 @@
                   <p className="text-sm m-1"><strong>Pagamento:</strong> {data.paymentMethod}</p>
                 </div>
               </div>
-
               <table className="w-full mb-8 border-collapse">
                 <thead>
                   <tr className="border-b-2 border-gray-800">
@@ -177,35 +199,17 @@
                   </tr>
                 </tbody>
               </table>
-
               <div className="flex justify-end">
                 <div className="w-64 space-y-2">
-                  <div className="flex justify-between text-gray-600">
-                    <span>Subtotal Itens</span>
-                    <span>{formatCurrency(calc.totalProducts)}</span>
-                  </div>
-                  <div className="flex justify-between text-gray-600">
-                    <span>Frete</span>
-                    <span>{formatCurrency(data.deliveryCharged)}</span>
-                  </div>
-                  <div className="flex justify-between text-2xl font-black border-t-2 border-gray-800 pt-3 mt-3">
-                    <span>TOTAL</span>
-                    <span>{formatCurrency(calc.totalOrder)}</span>
-                  </div>
+                  <div className="flex justify-between text-gray-600"><span>Subtotal Itens</span><span>{formatCurrency(calc.totalProducts)}</span></div>
+                  <div className="flex justify-between text-gray-600"><span>Frete</span><span>{formatCurrency(data.deliveryCharged)}</span></div>
+                  <div className="flex justify-between text-2xl font-black border-t-2 border-gray-800 pt-3 mt-3"><span>TOTAL</span><span>{formatCurrency(calc.totalOrder)}</span></div>
                 </div>
               </div>
-
               <div className="mt-16 pt-8 border-t border-gray-300 grid grid-cols-2 gap-8">
-                <div className="text-center">
-                  <div className="border-b border-gray-400 mb-2 h-10"></div>
-                  <p className="text-xs text-gray-600">Assinatura do Responsável</p>
-                </div>
-                <div className="text-center">
-                  <div className="border-b border-gray-400 mb-2 h-10"></div>
-                  <p className="text-xs text-gray-600">Cliente (De Acordo)</p>
-                </div>
+                <div className="text-center"><div className="border-b border-gray-400 mb-2 h-10"></div><p className="text-xs text-gray-600">Assinatura do Responsável</p></div>
+                <div className="text-center"><div className="border-b border-gray-400 mb-2 h-10"></div><p className="text-xs text-gray-600">Cliente (De Acordo)</p></div>
               </div>
-
               <div className="mt-8 p-4 bg-gray-50 rounded text-xs text-gray-500 text-center border border-gray-200">
                 Este orçamento não inclui custos não mencionados explicitamente. A produção inicia apenas após a confirmação do pagamento acordado.
               </div>
@@ -214,7 +218,6 @@
         );
       }
 
-      // RENDERIZAÇÃO NORMAL DO APP
       if (!isLoaded) return <div className="p-8 text-center">Carregando...</div>;
 
       return (
@@ -223,44 +226,34 @@
             <div className="p-5 bg-slate-900 text-white sticky top-0 z-20">
               <h1 className="text-lg font-bold flex items-center gap-2"><Icon name="Settings" size={20}/> Configuração</h1>
             </div>
-
             <div className="p-5 space-y-6 pb-24">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Produto</label>
-                <input type="text" value={data.productName} onChange={e => setData({...data, productName: e.target.value})} className="w-full border rounded p-2 mt-1"/>
+              <div><label className="block text-sm font-medium text-gray-700">Produto</label><input type="text" value={data.productName} onChange={e => setData({...data, productName: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
+              <div><label className="block text-sm font-medium text-gray-700">Quantidade</label><input type="number" value={data.quantity} onChange={e => setData({...data, quantity: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
+              <div><label className="block text-sm font-medium text-gray-700">Peso Peça (g)</label><input type="number" value={data.weight} onChange={e => setData({...data, weight: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
+              <div><label className="block text-sm font-medium text-gray-700">Purga/Falhas (g)</label><input type="number" value={data.purgeWeight} onChange={e => setData({...data, purgeWeight: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
+              <div><label className="block text-sm font-medium text-gray-700">Preço Filamento (R$/kg)</label><input type="number" value={data.pricePerKg} onChange={e => setData({...data, pricePerKg: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className="block text-sm font-medium text-gray-700">Tempo (h)</label><input type="number" value={data.hours} onChange={e => setData({...data, hours: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
+                <div><label className="block text-sm font-medium text-gray-700">Tempo (min)</label><input type="number" value={data.minutes} onChange={e => setData({...data, minutes: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Quantidade</label>
-                <input type="number" value={data.quantity} onChange={e => setData({...data, quantity: e.target.value})} className="w-full border rounded p-2 mt-1"/>
+              <div><label className="block text-sm font-medium text-gray-700">Custo Máquina (R$/h)</label><input type="number" step="0.1" value={data.machineCostPerHour} onChange={e => setData({...data, machineCostPerHour: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className="block text-sm font-medium text-gray-700">Consumo TOTAL (kWh)</label><input type="number" step="0.1" value={data.energyKwhTotal} onChange={e => setData({...data, energyKwhTotal: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
+                <div><label className="block text-sm font-medium text-gray-700">Tarifa (R$/kWh)</label><input type="number" step="0.01" value={data.energyTariff} onChange={e => setData({...data, energyTariff: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Peso (g)</label>
-                <input type="number" value={data.weight} onChange={e => setData({...data, weight: e.target.value})} className="w-full border rounded p-2 mt-1"/>
+              <div><label className="block text-sm font-medium text-gray-700">Modelagem (Horas)</label><input type="number" step="0.5" value={data.modelingHours} onChange={e => setData({...data, modelingHours: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
+              <div><label className="block text-sm font-medium text-gray-700">Taxa Modelagem (R$/h)</label><input type="number" value={data.modelingRate} onChange={e => setData({...data, modelingRate: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className="block text-sm font-medium text-gray-700">Preparo (min)</label><input type="number" value={data.prepMins} onChange={e => setData({...data, prepMins: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
+                <div><label className="block text-sm font-medium text-gray-700">Taxa Prep (R$/h)</label><input type="number" value={data.prepRate} onChange={e => setData({...data, prepRate: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Purga (g)</label>
-                <input type="number" value={data.purgeWeight} onChange={e => setData({...data, purgeWeight: e.target.value})} className="w-full border rounded p-2 mt-1"/>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className="block text-sm font-medium text-gray-700">Acabamento (min)</label><input type="number" value={data.finishingMins} onChange={e => setData({...data, finishingMins: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
+                <div><label className="block text-sm font-medium text-gray-700">Taxa Acab (R$/h)</label><input type="number" value={data.finishingRate} onChange={e => setData({...data, finishingRate: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Preço Filamento (R$/kg)</label>
-                <input type="number" value={data.pricePerKg} onChange={e => setData({...data, pricePerKg: e.target.value})} className="w-full border rounded p-2 mt-1"/>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Tempo (horas)</label>
-                <input type="number" value={data.hours} onChange={e => setData({...data, hours: e.target.value})} className="w-full border rounded p-2 mt-1"/>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Custo Máquina (R$/h)</label>
-                <input type="number" step="0.1" value={data.machineCostPerHour} onChange={e => setData({...data, machineCostPerHour: e.target.value})} className="w-full border rounded p-2 mt-1"/>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Margem de Lucro (%)</label>
-                <input type="number" value={data.profitPercent} onChange={e => setData({...data, profitPercent: e.target.value})} className="w-full border rounded p-2 mt-1"/>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Frete Cobrado (R$)</label>
-                <input type="number" value={data.deliveryCharged} onChange={e => setData({...data, deliveryCharged: e.target.value})} className="w-full border rounded p-2 mt-1"/>
-              </div>
+              <div><label className="block text-sm font-medium text-gray-700">Reserva Técnica (%)</label><input type="number" value={data.reservePercent} onChange={e => setData({...data, reservePercent: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
+              <div><label className="block text-sm font-medium text-gray-700">Margem de Lucro (%)</label><input type="number" value={data.profitPercent} onChange={e => setData({...data, profitPercent: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
+              <div><label className="block text-sm font-medium text-gray-700">Frete Cobrado (R$)</label><input type="number" value={data.deliveryCharged} onChange={e => setData({...data, deliveryCharged: e.target.value})} className="w-full border rounded p-2 mt-1"/></div>
             </div>
           </aside>
 
@@ -276,29 +269,27 @@
 
             {viewMode === 'internal' ? (
               <div className="bg-white rounded-xl shadow-lg p-6 max-w-4xl mx-auto">
-                <h2 className="text-2xl font-bold text-slate-800 mb-4">Resumo do Cálculo</h2>
+                <h2 className="text-2xl font-bold text-slate-800 mb-4">Resumo do Cálculo (Auditoria)</h2>
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span>Material:</span><span>{formatCurrency(calc.filamentCost)}</span></div>
-                  <div className="flex justify-between"><span>Máquina:</span><span>{formatCurrency(calc.machineCost)}</span></div>
-                  <div className="flex justify-between"><span>Energia:</span><span>{formatCurrency(calc.energyCost)}</span></div>
-                  <div className="flex justify-between"><span>Mão de obra:</span><span>{formatCurrency(calc.laborCost)}</span></div>
-                  <div className="flex justify-between font-bold border-t pt-2 mt-2"><span>Custo Real:</span><span>{formatCurrency(calc.realCost)}</span></div>
-                  <div className="flex justify-between text-xl font-bold text-blue-600"><span>Preço Unitário:</span><span>{formatCurrency(calc.unitPrice)}</span></div>
-                  <div className="flex justify-between text-2xl font-bold text-green-600 mt-2"><span>TOTAL:</span><span>{formatCurrency(calc.totalOrder)}</span></div>
+                  <div className="flex justify-between"><span>1. Material (Filamento):</span><span className="font-mono">{formatCurrency(calc.filamentCost)}</span></div>
+                  <div className="flex justify-between"><span>2. Máquina (Depreciação):</span><span className="font-mono">{formatCurrency(calc.machineCost)}</span></div>
+                  <div className="flex justify-between"><span>3. Energia Elétrica:</span><span className="font-mono">{formatCurrency(calc.energyCost)}</span></div>
+                  <div className="flex justify-between"><span>4. Mão de Obra Total:</span><span className="font-mono">{formatCurrency(calc.laborCost)}</span></div>
+                  <div className="flex justify-between"><span>5. Componentes:</span><span className="font-mono">{formatCurrency(calc.compCost)}</span></div>
+                  <div className="flex justify-between font-semibold border-t pt-2 mt-2"><span>Subtotal Produção:</span><span className="font-mono">{formatCurrency(calc.subtotal)}</span></div>
+                  <div className="flex justify-between text-orange-600"><span>Reserva Técnica ({data.reservePercent}%):</span><span className="font-mono">{formatCurrency(calc.reserve)}</span></div>
+                  <div className="flex justify-between font-bold text-lg border-t-2 border-slate-800 pt-2 mt-2"><span>CUSTO REAL UNITÁRIO:</span><span className="font-mono">{formatCurrency(calc.realCost)}</span></div>
+                  <div className="flex justify-between text-xl font-bold text-blue-600 mt-2"><span>PREÇO DE VENDA UNITÁRIO:</span><span className="font-mono">{formatCurrency(calc.unitPrice)}</span></div>
+                  <div className="flex justify-between text-2xl font-black text-green-600 mt-4 pt-4 border-t-2 border-green-200"><span>TOTAL DO PEDIDO:</span><span className="font-mono">{formatCurrency(calc.totalOrder)}</span></div>
                 </div>
               </div>
             ) : (
               <div className="max-w-4xl mx-auto">
                 <div className="mb-6 flex justify-center">
-                  <button 
-                    onClick={handlePrint}
-                    className="bg-green-600 hover:bg-green-700 active:bg-green-800 text-white px-8 py-4 rounded-xl shadow-xl font-bold text-lg flex items-center gap-3 cursor-pointer transition-colors w-full md:w-auto justify-center"
-                  >
-                    <Icon name="Printer" size={24}/>
-                    IMPRIMIR / SALVAR PDF
+                  <button onClick={handlePrint} className="bg-green-600 hover:bg-green-700 active:bg-green-800 text-white px-8 py-4 rounded-xl shadow-xl font-bold text-lg flex items-center gap-3 cursor-pointer transition-colors w-full md:w-auto justify-center">
+                    <Icon name="Printer" size={24}/> IMPRIMIR / SALVAR PDF
                   </button>
                 </div>
-
                 <div className="bg-white rounded-xl shadow-lg p-8 md:p-12 border border-gray-200">
                   <div className="border-b-2 border-gray-800 pb-6 mb-8">
                     <div className="flex justify-between items-start">
@@ -312,7 +303,6 @@
                       </div>
                     </div>
                   </div>
-
                   <div className="grid md:grid-cols-2 gap-8 mb-8">
                     <div>
                       <h3 className="text-xs font-bold uppercase text-gray-400 mb-2">Para</h3>
@@ -326,7 +316,6 @@
                       <p className="text-sm"><span className="font-semibold">Pagamento:</span> {data.paymentMethod}</p>
                     </div>
                   </div>
-
                   <table className="w-full mb-8">
                     <thead>
                       <tr className="border-b-2 border-gray-800">
@@ -354,35 +343,17 @@
                       </tr>
                     </tbody>
                   </table>
-
                   <div className="flex justify-end">
                     <div className="w-64 space-y-2">
-                      <div className="flex justify-between text-gray-600">
-                        <span>Subtotal Itens</span>
-                        <span>{formatCurrency(calc.totalProducts)}</span>
-                      </div>
-                      <div className="flex justify-between text-gray-600">
-                        <span>Frete</span>
-                        <span>{formatCurrency(data.deliveryCharged)}</span>
-                      </div>
-                      <div className="flex justify-between text-2xl font-black border-t-2 border-gray-800 pt-3 mt-3">
-                        <span>TOTAL</span>
-                        <span>{formatCurrency(calc.totalOrder)}</span>
-                      </div>
+                      <div className="flex justify-between text-gray-600"><span>Subtotal Itens</span><span>{formatCurrency(calc.totalProducts)}</span></div>
+                      <div className="flex justify-between text-gray-600"><span>Frete</span><span>{formatCurrency(data.deliveryCharged)}</span></div>
+                      <div className="flex justify-between text-2xl font-black border-t-2 border-gray-800 pt-3 mt-3"><span>TOTAL</span><span>{formatCurrency(calc.totalOrder)}</span></div>
                     </div>
                   </div>
-
                   <div className="mt-12 pt-8 border-t border-gray-300 grid grid-cols-2 gap-8">
-                    <div className="text-center">
-                      <div className="border-b border-gray-400 mb-2 h-10"></div>
-                      <p className="text-xs text-gray-600">Assinatura do Responsável</p>
-                    </div>
-                    <div className="text-center">
-                      <div className="border-b border-gray-400 mb-2 h-10"></div>
-                      <p className="text-xs text-gray-600">Cliente (De Acordo)</p>
-                    </div>
+                    <div className="text-center"><div className="border-b border-gray-400 mb-2 h-10"></div><p className="text-xs text-gray-600">Assinatura do Responsável</p></div>
+                    <div className="text-center"><div className="border-b border-gray-400 mb-2 h-10"></div><p className="text-xs text-gray-600">Cliente (De Acordo)</p></div>
                   </div>
-
                   <div className="mt-8 p-4 bg-gray-50 rounded text-xs text-gray-500 text-center border border-gray-200">
                     Este orçamento não inclui custos não mencionados explicitamente. A produção inicia apenas após a confirmação do pagamento acordado.
                   </div>
