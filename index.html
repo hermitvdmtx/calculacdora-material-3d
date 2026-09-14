@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f172a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="SaaS de Precificação para Impressão 3D (Otimizado para Bambu Lab A1)">
+  <meta name="description" content="SaaS de Precificação para Impressão 3D">
   <title>Precificação 3D | Bambu A1</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -17,6 +17,25 @@
     html { scroll-behavior: smooth; }
     input[type="number"]::-webkit-inner-spin-button, 
     input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    
+    /* ESTILOS DE IMPRESSÃO (A4) */
+    @media print {
+      @page { margin: 1.5cm; size: A4; }
+      body { background: white !important; color: black !important; }
+      .no-print { display: none !important; }
+      #printable-area { 
+        display: block !important; 
+        visibility: visible !important; 
+        position: static !important; 
+        width: 100% !important; 
+        margin: 0 !important; 
+        padding: 0 !important; 
+        box-shadow: none !important; 
+        border: none !important;
+      }
+      /* Forçar quebras de página limpas */
+      tr, td, th { page-break-inside: avoid; }
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
@@ -36,7 +55,8 @@
         Eye: <><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></>,
         FileText: <><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></>,
         Plus: <><path d="M5 12h14"/><path d="M12 5v14"/></>,
-        Trash2: <><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></>
+        Trash2: <><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></>,
+        Printer: <><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></>
       };
       return (
         <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -105,6 +125,10 @@
           localStorage.removeItem('bambuPricingData');
           window.location.reload();
         }
+      };
+
+      const handlePrint = () => {
+        window.print();
       };
 
       const calc = useMemo(() => {
@@ -188,7 +212,7 @@
 
       return (
         <div className="min-h-screen bg-slate-50 font-sans flex flex-col md:flex-row">
-          <aside className="w-full md:w-96 bg-white md:border-r border-slate-200 md:h-screen overflow-y-auto shrink-0 shadow-lg z-10">
+          <aside className="w-full md:w-96 bg-white md:border-r border-slate-200 md:h-screen overflow-y-auto shrink-0 shadow-lg z-10 no-print">
             <div className="p-5 bg-slate-900 text-white sticky top-0 z-20 flex justify-between items-center">
               <div>
                 <h1 className="text-lg font-bold flex items-center gap-2"><Icon name="Settings" size={20}/> Configuração</h1>
@@ -304,7 +328,7 @@
           </aside>
 
           <main className="flex-1 bg-slate-100 overflow-y-auto relative p-4 md:p-8">
-            <div className="flex justify-center mb-6 sticky top-0 z-10">
+            <div className="flex justify-center mb-6 sticky top-0 z-10 no-print">
               <div className="bg-white p-1 rounded-lg shadow-md border border-slate-200 flex gap-1">
                 <button onClick={() => setViewMode('internal')} className={`flex items-center gap-2 px-4 py-2 rounded-md font-semibold text-sm transition-all ${viewMode === 'internal' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>
                   <Icon name="Eye" size={18} /> <span className="hidden sm:inline">VISÃO INTERNA</span><span className="sm:hidden">CÁLCULO</span>
@@ -408,7 +432,17 @@
               </div>
             ) : (
               <div className="max-w-3xl mx-auto pb-12 animate-in fade-in zoom-in-95 duration-200">
-                <div className="bg-white p-6 md:p-10 rounded-xl shadow-lg border border-gray-200">
+                
+                {/* BOTÃO DE IMPRESSÃO (Oculta na impressão) */}
+                <div className="no-print flex justify-end mb-4">
+                  <button onClick={handlePrint} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-lg shadow-lg font-semibold transition-all">
+                    <Icon name="Printer" size={20} />
+                    Imprimir / Salvar PDF
+                  </button>
+                </div>
+
+                {/* ÁREA IMPRIMÍVEL */}
+                <div id="printable-area" className="bg-white p-6 md:p-10 rounded-xl shadow-lg border border-gray-200">
                   <div className="flex justify-between items-start border-b-2 border-gray-800 pb-6 mb-8">
                     <div>
                       <h1 className="text-3xl font-black text-gray-900 tracking-tight">ORÇAMENTO</h1>
@@ -437,24 +471,24 @@
                   <div className="overflow-x-auto">
                     <table className="w-full text-left mb-8 border-collapse min-w-[500px]">
                       <thead>
-                        <tr className="border-b-2 border-gray-200">
-                          <th className="py-3 px-2 font-bold text-gray-700 uppercase text-xs tracking-wider">Item / Descrição</th>
-                          <th className="py-3 px-2 font-bold text-gray-700 uppercase text-xs tracking-wider text-center">Qtd</th>
-                          <th className="py-3 px-2 font-bold text-gray-700 uppercase text-xs tracking-wider text-right">V. Unitário</th>
-                          <th className="py-3 px-2 font-bold text-gray-700 uppercase text-xs tracking-wider text-right">Subtotal</th>
+                        <tr className="border-b-2 border-gray-800">
+                          <th className="py-3 px-2 font-bold text-gray-900 uppercase text-xs tracking-wider">Item / Descrição</th>
+                          <th className="py-3 px-2 font-bold text-gray-900 uppercase text-xs tracking-wider text-center">Qtd</th>
+                          <th className="py-3 px-2 font-bold text-gray-900 uppercase text-xs tracking-wider text-right">V. Unitário</th>
+                          <th className="py-3 px-2 font-bold text-gray-900 uppercase text-xs tracking-wider text-right">Subtotal</th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr className="border-b border-gray-100">
-                          <td className="py-4 px-2"><div className="font-bold text-gray-800">{quoteDetails.productName}</div><div className="text-sm text-gray-500 mt-1">{quoteDetails.description}</div></td>
-                          <td className="py-4 px-2 text-center text-gray-800 font-medium">{calc.qty}</td>
-                          <td className="py-4 px-2 text-right text-gray-800 font-medium">{formatCurrency(calc.unitPrice)}</td>
+                        <tr className="border-b border-gray-200">
+                          <td className="py-4 px-2"><div className="font-bold text-gray-900">{quoteDetails.productName}</div><div className="text-sm text-gray-600 mt-1">{quoteDetails.description}</div></td>
+                          <td className="py-4 px-2 text-center text-gray-900 font-medium">{calc.qty}</td>
+                          <td className="py-4 px-2 text-right text-gray-900 font-medium">{formatCurrency(calc.unitPrice)}</td>
                           <td className="py-4 px-2 text-right text-gray-900 font-bold">{formatCurrency(calc.totalProductsCharged)}</td>
                         </tr>
-                        <tr className="border-b border-gray-100 bg-gray-50">
-                          <td className="py-4 px-2"><div className="font-bold text-gray-800">Entrega</div><div className="text-sm text-gray-500 mt-1">{delivery.method}</div></td>
-                          <td className="py-4 px-2 text-center text-gray-800 font-medium">-</td>
-                          <td className="py-4 px-2 text-right text-gray-800 font-medium">-</td>
+                        <tr className="border-b border-gray-200 bg-gray-50">
+                          <td className="py-4 px-2"><div className="font-bold text-gray-900">Entrega</div><div className="text-sm text-gray-600 mt-1">{delivery.method}</div></td>
+                          <td className="py-4 px-2 text-center text-gray-900 font-medium">-</td>
+                          <td className="py-4 px-2 text-right text-gray-900 font-medium">-</td>
                           <td className="py-4 px-2 text-right text-gray-900 font-bold">{formatCurrency(calc.deliveryCharged)}</td>
                         </tr>
                       </tbody>
@@ -462,12 +496,25 @@
                   </div>
                   <div className="flex justify-end">
                     <div className="w-full md:w-64 space-y-3">
-                      <div className="flex justify-between text-gray-600"><span>Subtotal Itens</span><span>{formatCurrency(calc.totalProductsCharged)}</span></div>
-                      <div className="flex justify-between text-gray-600"><span>Frete</span><span>{formatCurrency(calc.deliveryCharged)}</span></div>
-                      <div className="flex justify-between text-xl font-black text-gray-900 border-t-2 border-gray-800 pt-3 mt-3"><span>TOTAL</span><span>{formatCurrency(calc.totalOrderValue)}</span></div>
+                      <div className="flex justify-between text-gray-700"><span>Subtotal Itens</span><span>{formatCurrency(calc.totalProductsCharged)}</span></div>
+                      <div className="flex justify-between text-gray-700"><span>Frete</span><span>{formatCurrency(calc.deliveryCharged)}</span></div>
+                      <div className="flex justify-between text-xl font-black text-gray-900 border-t-2 border-gray-900 pt-3 mt-3"><span>TOTAL</span><span>{formatCurrency(calc.totalOrderValue)}</span></div>
                     </div>
                   </div>
-                  <div className="mt-12 p-4 bg-gray-50 rounded text-xs text-gray-500 text-center border border-gray-200">
+                  
+                  {/* LINHA DE ASSINATURA (Apenas na impressão) */}
+                  <div className="mt-16 pt-8 border-t border-gray-300 grid grid-cols-2 gap-8 print-only">
+                    <div className="text-center">
+                      <div className="border-b border-gray-400 mb-2 h-8"></div>
+                      <p className="text-xs text-gray-600 uppercase">Assinatura do Responsável</p>
+                    </div>
+                    <div className="text-center">
+                      <div className="border-b border-gray-400 mb-2 h-8"></div>
+                      <p className="text-xs text-gray-600 uppercase">Assinatura do Cliente (De Acordo)</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 p-4 bg-gray-50 rounded text-xs text-gray-500 text-center border border-gray-200">
                     Este orçamento não inclui custos não mencionados explicitamente. A produção inicia apenas após a confirmação do pagamento acordado.
                   </div>
                 </div>
