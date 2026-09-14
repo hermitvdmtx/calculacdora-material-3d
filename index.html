@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="SaaS de Precificação para Impressão 3D (Otimizado para Bambu Lab A1)">
+  <title>Precificação 3D | Bambu A1</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { -webkit-tap-highlight-color: transparent; }
+    html { scroll-behavior: smooth; }
+    input[type="number"]::-webkit-inner-spin-button, 
+    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect } = React;
+
+    const Icon = ({ name, size = 16, className = "" }) => {
+      const icons = {
+        ChevronDown: <path d="m6 9 6 6 6-6"/>,
+        ChevronRight: <path d="m9 18 6-6-6-6"/>,
+        AlertTriangle: <><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></>,
+        CheckCircle: <><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></>,
+        XCircle: <><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></>,
+        Settings: <><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></>,
+        Eye: <><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></>,
+        FileText: <><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></>,
+        Plus: <><path d="M5 12h14"/><path d="M12 5v14"/></>,
+        Trash2: <><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></>
+      };
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+          {icons[name] || null}
+        </svg>
+      );
+    };
+
+    const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+    const formatNumber = (value, decimals = 2) => new Intl.NumberFormat('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(value || 0);
+
+    const ExpandableRow = ({ label, value, children, defaultOpen = false, isBold = false, iconName }) => {
+      const [isOpen, setIsOpen] = useState(defaultOpen);
+      return (
+        <div className="border-b border-gray-100 last:border-0 py-2">
+          <div className={`flex justify-between items-center cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors ${isBold ? 'font-bold text-gray-800' : 'text-gray-700'}`} onClick={() => setIsOpen(!isOpen)}>
+            <div className="flex items-center gap-2">
+              {isOpen ? <Icon name="ChevronDown" size={16} className="text-gray-400" /> : <Icon name="ChevronRight" size={16} className="text-gray-400" />}
+              {iconName && <Icon name={iconName} size={16} className="text-gray-500" />}
+              <span>{label}</span>
+            </div>
+            <span>{value}</span>
+          </div>
+          {isOpen && <div className="pl-8 pr-2 py-2 text-sm text-gray-600 bg-gray-50/50 rounded-b border-l-2 border-blue-200 ml-3 mt-1">{children}</div>}
+        </div>
+      );
+    };
+
+    const App = () => {
+      const [viewMode, setViewMode] = useState('internal');
+      const [isLoaded, setIsLoaded] = useState(false);
+
+      const [quoteDetails, setQuoteDetails] = useState({ productName: 'Suporte Articulado', description: 'Impresso em PETG com parafusos embutidos.', deadline: '5 dias úteis', paymentMethod: '50% Pix, 50% na entrega', validityDays: 7 });
+      const [settings, setSettings] = useState({ quantity: 1, technicalReservePercent: 10, profitMethod: 'markup', profitPercent: 40 });
+      const [filaments, setFilaments] = useState([{ id: 1, color: 'Preto', type: 'PETG', weight: 150, purgeWeight: 15, pricePerKg: 110 }]);
+      const [printing, setPrinting] = useState({ hours: 4, minutes: 30, machineCostPerHour: 1.50, energyKwh: 1.2, energyTariff: 0.95 });
+      const [labor, setLabor] = useState({ modelingHours: 1, modelingRate: 50, prepMins: 15, prepRate: 20, finishingMins: 30, finishingRate: 20, assemblyMins: 15, assemblyRate: 20 });
+      const [components, setComponents] = useState([{ id: 1, name: 'Parafuso M4', qty: 4, unitPrice: 0.50 }, { id: 2, name: 'Embalagem', qty: 1, unitPrice: 2.50 }]);
+      const [delivery, setDelivery] = useState({ method: 'Entrega Local', actualCost: 15.00, chargedValue: 15.00 });
+
+      useEffect(() => {
+        const saved = localStorage.getItem('bambuPricingData');
+        if (saved) {
+          try {
+            const p = JSON.parse(saved);
+            if(p.quoteDetails) setQuoteDetails(p.quoteDetails);
+            if(p.settings) setSettings(p.settings);
+            if(p.filaments) setFilaments(p.filaments);
+            if(p.printing) setPrinting(p.printing);
+            if(p.labor) setLabor(p.labor);
+            if(p.components) setComponents(p.components);
+            if(p.delivery) setDelivery(p.delivery);
+          } catch (e) { console.error(e); }
+        }
+        setIsLoaded(true);
+      }, []);
+
+      useEffect(() => {
+        if (isLoaded) {
+          localStorage.setItem('bambuPricingData', JSON.stringify({ quoteDetails, settings, filaments, printing, labor, components, delivery }));
+        }
+      }, [quoteDetails, settings, filaments, printing, labor, components, delivery, isLoaded]);
+
+      const clearData = () => {
+        if(window.confirm('Limpar todos os dados e resetar para o padrão?')) {
+          localStorage.removeItem('bambuPricingData');
+          window.location.reload();
+        }
+      };
+
+      const calc = useMemo(() => {
+        const filamentDetails = filaments.map(f => {
+          const totalWeight = parseFloat(f.weight || 0) + parseFloat(f.purgeWeight || 0);
+          const costPerG = parseFloat(f.pricePerKg || 0) / 1000;
+          return { ...f, totalWeight, costPerG, cost: totalWeight * costPerG };
+        });
+        const totalFilamentCost = filamentDetails.reduce((acc, curr) => acc + curr.cost, 0);
+
+        const printTimeTotalHours = parseFloat(printing.hours || 0) + (parseFloat(printing.minutes || 0) / 60);
+        const machineCost = printTimeTotalHours * parseFloat(printing.machineCostPerHour || 0);
+        const energyCost = parseFloat(printing.energyKwh || 0) * parseFloat(printing.energyTariff || 0);
+        const totalPrintCost = machineCost + energyCost;
+
+        const laborModeling = parseFloat(labor.modelingHours || 0) * parseFloat(labor.modelingRate || 0);
+        const laborPrep = (parseFloat(labor.prepMins || 0) / 60) * parseFloat(labor.prepRate || 0);
+        const laborFinishing = (parseFloat(labor.finishingMins || 0) / 60) * parseFloat(labor.finishingRate || 0);
+        const laborAssembly = (parseFloat(labor.assemblyMins || 0) / 60) * parseFloat(labor.assemblyRate || 0);
+        const totalLaborCost = laborModeling + laborPrep + laborFinishing + laborAssembly;
+
+        const compDetails = components.map(c => ({ ...c, cost: parseFloat(c.qty || 0) * parseFloat(c.unitPrice || 0) }));
+        const totalComponentsCost = compDetails.reduce((acc, curr) => acc + curr.cost, 0);
+
+        const productionSubtotal = totalFilamentCost + totalPrintCost + totalLaborCost + totalComponentsCost;
+        const reserveValue = productionSubtotal * (parseFloat(settings.technicalReservePercent || 0) / 100);
+        const realCostUnit = productionSubtotal + reserveValue;
+
+        let unitPrice = 0, profitUnit = 0;
+        const profitPercent = parseFloat(settings.profitPercent || 0) / 100;
+        if (settings.profitMethod === 'markup') {
+          unitPrice = realCostUnit * (1 + profitPercent);
+          profitUnit = unitPrice - realCostUnit;
+        } else {
+          unitPrice = profitPercent < 0.99 ? realCostUnit / (1 - profitPercent) : realCostUnit;
+          profitUnit = unitPrice - realCostUnit;
+        }
+
+        const qty = parseInt(settings.quantity || 1, 10);
+        const deliveryCost = parseFloat(delivery.actualCost || 0);
+        const deliveryCharged = parseFloat(delivery.chargedValue || 0);
+        const totalProductsCharged = unitPrice * qty;
+        const totalOrderValue = totalProductsCharged + deliveryCharged;
+        const totalRealCostAllUnits = realCostUnit * qty;
+        const totalCostWithDelivery = totalRealCostAllUnits + deliveryCost;
+        const totalProfit = totalOrderValue - totalCostWithDelivery;
+        const realMarginPercent = totalOrderValue > 0 ? (totalProfit / totalOrderValue) * 100 : 0;
+
+        return { filamentDetails, totalFilamentCost, printTimeTotalHours, machineCost, energyCost, totalPrintCost, laborModeling, laborPrep, laborFinishing, laborAssembly, totalLaborCost, compDetails, totalComponentsCost, productionSubtotal, reserveValue, realCostUnit, unitPrice, profitUnit, qty, deliveryCost, deliveryCharged, totalProductsCharged, totalOrderValue, totalRealCostAllUnits, totalCostWithDelivery, totalProfit, realMarginPercent };
+      }, [filaments, printing, labor, components, settings, delivery]);
+
+      const addFilament = () => setFilaments([...filaments, { id: Date.now(), color: 'Nova Cor', type: 'PLA', weight: 0, purgeWeight: 0, pricePerKg: 120 }]);
+      const removeFilament = (id) => setFilaments(filaments.filter(f => f.id !== id));
+      const addComponent = () => setComponents([...components, { id: Date.now(), name: 'Novo Item', qty: 1, unitPrice: 0 }]);
+      const removeComponent = (id) => setComponents(components.filter(c => c.id !== id));
+
+      const renderAudit = () => {
+        const alerts = [];
+        if (calc.totalProfit < 0) alerts.push({ type: 'danger', iconName: 'XCircle', title: 'PREJUÍZO DETECTADO', desc: 'O custo total é maior que o valor cobrado.' });
+        if (calc.realMarginPercent >= 0 && calc.realMarginPercent < 20 && calc.totalProfit >= 0) alerts.push({ type: 'warning', iconName: 'AlertTriangle', title: 'MARGEM BAIXA', desc: `Margem real de ${formatNumber(calc.realMarginPercent, 1)}% é arriscada.` });
+        else if (calc.realMarginPercent >= 20) alerts.push({ type: 'success', iconName: 'CheckCircle', title: 'PREÇO SAUDÁVEL', desc: `Margem real de ${formatNumber(calc.realMarginPercent, 1)}% garante sustentabilidade.` });
+        if (calc.deliveryCost > calc.deliveryCharged) alerts.push({ type: 'warning', iconName: 'AlertTriangle', title: 'FRETE REDUZINDO LUCRO', desc: 'Você está absorvendo parte do custo de entrega.' });
+        if (parseFloat(settings.technicalReservePercent) === 0) alerts.push({ type: 'warning', iconName: 'AlertTriangle', title: 'SEM RESERVA PARA FALHAS', desc: 'Qualquer falha sairá do seu lucro.' });
+
+        return (
+          <div className="space-y-3 mt-4">
+            {alerts.map((a, i) => {
+              const colors = { danger: 'bg-red-50 border-red-200 text-red-700', warning: 'bg-yellow-50 border-yellow-200 text-yellow-800', success: 'bg-emerald-50 border-emerald-200 text-emerald-700' }[a.type];
+              return (
+                <div key={i} className={`p-4 rounded-lg border ${colors} flex items-start gap-3`}>
+                  <Icon name={a.iconName} className="mt-0.5 shrink-0" size={20} />
+                  <div><h4 className="font-bold text-sm">{a.title}</h4><p className="text-sm opacity-90 mt-1">{a.desc}</p></div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      };
+
+      if (!isLoaded) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="animate-pulse text-slate-500">Carregando sistema...</div></div>;
+
+      return (
+        <div className="min-h-screen bg-slate-50 font-sans flex flex-col md:flex-row">
+          <aside className="w-full md:w-96 bg-white md:border-r border-slate-200 md:h-screen overflow-y-auto shrink-0 shadow-lg z-10">
+            <div className="p-5 bg-slate-900 text-white sticky top-0 z-20 flex justify-between items-center">
+              <div>
+                <h1 className="text-lg font-bold flex items-center gap-2"><Icon name="Settings" size={20}/> Configuração</h1>
+                <p className="text-xs text-slate-400 mt-1">Ajuste os parâmetros de custo.</p>
+              </div>
+              <button onClick={clearData} className="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-slate-300 transition-colors">Resetar</button>
+            </div>
+
+            <div className="p-5 space-y-8 pb-24">
+              <section>
+                <h4 className="font-bold text-slate-700 border-b border-slate-200 pb-2 mb-3 text-sm uppercase">1. Dados do Orçamento</h4>
+                <div className="space-y-3 text-sm">
+                  <div><label className="block text-xs text-slate-500 mb-1">Produto</label><input type="text" className="w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none" value={quoteDetails.productName} onChange={e => setQuoteDetails({...quoteDetails, productName: e.target.value})} /></div>
+                  <div><label className="block text-xs text-slate-500 mb-1">Quantidade</label><input type="number" inputMode="numeric" min="1" className="w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none" value={settings.quantity} onChange={e => setSettings({...settings, quantity: e.target.value})} /></div>
+                </div>
+              </section>
+
+              <section>
+                <div className="flex justify-between items-end border-b border-slate-200 pb-2 mb-3">
+                  <h4 className="font-bold text-slate-700 text-sm uppercase">2. Material (Filamentos)</h4>
+                  <button onClick={addFilament} className="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1"><Icon name="Plus" size={14}/> Add</button>
+                </div>
+                <div className="space-y-4">
+                  {filaments.map((f, i) => (
+                    <div key={f.id} className="bg-slate-50 p-3 rounded border border-slate-200 relative">
+                      {filaments.length > 1 && <button onClick={() => removeFilament(f.id)} className="absolute top-2 right-2 text-red-400 hover:text-red-600"><Icon name="Trash2" size={16}/></button>}
+                      <div className="grid grid-cols-2 gap-2 text-sm mt-1">
+                        <div><label className="block text-[10px] text-slate-500 uppercase">Cor</label><input type="text" className="w-full border rounded p-1.5" value={f.color} onChange={e => { const n = [...filaments]; n[i].color = e.target.value; setFilaments(n); }} /></div>
+                        <div><label className="block text-[10px] text-slate-500 uppercase">Preço Kg (R$)</label><input type="number" inputMode="decimal" step="0.01" className="w-full border rounded p-1.5" value={f.pricePerKg} onChange={e => { const n = [...filaments]; n[i].pricePerKg = e.target.value; setFilaments(n); }} /></div>
+                        <div><label className="block text-[10px] text-slate-500 uppercase">Peso Peça (g)</label><input type="number" inputMode="decimal" className="w-full border rounded p-1.5" value={f.weight} onChange={e => { const n = [...filaments]; n[i].weight = e.target.value; setFilaments(n); }} /></div>
+                        <div><label className="block text-[10px] text-slate-500 uppercase">Purga (g)</label><input type="number" inputMode="decimal" className="w-full border rounded p-1.5" value={f.purgeWeight} onChange={e => { const n = [...filaments]; n[i].purgeWeight = e.target.value; setFilaments(n); }} /></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section>
+                <h4 className="font-bold text-slate-700 border-b border-slate-200 pb-2 mb-3 text-sm uppercase">3. Impressão</h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><label className="block text-[10px] text-slate-500 uppercase">Tempo (Horas)</label><input type="number" inputMode="numeric" className="w-full border rounded p-2" value={printing.hours} onChange={e => setPrinting({...printing, hours: e.target.value})} /></div>
+                  <div><label className="block text-[10px] text-slate-500 uppercase">Tempo (Min)</label><input type="number" inputMode="numeric" className="w-full border rounded p-2" value={printing.minutes} onChange={e => setPrinting({...printing, minutes: e.target.value})} /></div>
+                  <div><label className="block text-[10px] text-slate-500 uppercase">Custo Máq. (R$/h)</label><input type="number" inputMode="decimal" step="0.1" className="w-full border rounded p-2" value={printing.machineCostPerHour} onChange={e => setPrinting({...printing, machineCostPerHour: e.target.value})} /></div>
+                  <div><label className="block text-[10px] text-slate-500 uppercase">Consumo (kWh)</label><input type="number" inputMode="decimal" step="0.1" className="w-full border rounded p-2" value={printing.energyKwh} onChange={e => setPrinting({...printing, energyKwh: e.target.value})} /></div>
+                  <div className="col-span-2"><label className="block text-[10px] text-slate-500 uppercase">Tarifa Energia (R$/kWh)</label><input type="number" inputMode="decimal" step="0.01" className="w-full border rounded p-2" value={printing.energyTariff} onChange={e => setPrinting({...printing, energyTariff: e.target.value})} /></div>
+                </div>
+              </section>
+
+              <section>
+                <h4 className="font-bold text-slate-700 border-b border-slate-200 pb-2 mb-3 text-sm uppercase">4. Trabalho Humano</h4>
+                <div className="space-y-3 text-sm">
+                  {[
+                    { label: 'Modelagem', h: labor.modelingHours, r: labor.modelingRate, setH: v => setLabor({...labor, modelingHours: v}), setR: v => setLabor({...labor, modelingRate: v}) },
+                    { label: 'Preparo', h: labor.prepMins, r: labor.prepRate, setH: v => setLabor({...labor, prepMins: v}), setR: v => setLabor({...labor, prepRate: v}) },
+                    { label: 'Acabamento', h: labor.finishingMins, r: labor.finishingRate, setH: v => setLabor({...labor, finishingMins: v}), setR: v => setLabor({...labor, finishingRate: v}) }
+                  ].map((item, idx) => (
+                    <div key={idx} className="flex gap-2 items-end">
+                      <div className="w-1/2"><label className="block text-[10px] text-slate-500 uppercase">{item.label} (Min/H)</label><input type="number" inputMode="decimal" className="w-full border rounded p-2" value={item.h} onChange={e => item.setH(e.target.value)} /></div>
+                      <div className="w-1/2"><label className="block text-[10px] text-slate-500 uppercase">Valor (R$/h)</label><input type="number" inputMode="decimal" className="w-full border rounded p-2" value={item.r} onChange={e => item.setR(e.target.value)} /></div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+              
+              <section>
+                <div className="flex justify-between items-end border-b border-slate-200 pb-2 mb-3">
+                  <h4 className="font-bold text-slate-700 text-sm uppercase">5. Componentes Extras</h4>
+                  <button onClick={addComponent} className="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1"><Icon name="Plus" size={14}/> Add</button>
+                </div>
+                <div className="space-y-3">
+                  {components.map((c, i) => (
+                    <div key={c.id} className="flex gap-2 items-center bg-slate-50 p-2 rounded border border-slate-200 text-sm">
+                       <div className="flex-1"><input type="text" placeholder="Nome" className="w-full border rounded p-1.5" value={c.name} onChange={e => { const n = [...components]; n[i].name = e.target.value; setComponents(n); }} /></div>
+                       <div className="w-14"><input type="number" inputMode="numeric" placeholder="Qtd" className="w-full border rounded p-1.5 text-center" value={c.qty} onChange={e => { const n = [...components]; n[i].qty = e.target.value; setComponents(n); }} /></div>
+                       <div className="w-20"><input type="number" inputMode="decimal" placeholder="R$" className="w-full border rounded p-1.5 text-right" value={c.unitPrice} onChange={e => { const n = [...components]; n[i].unitPrice = e.target.value; setComponents(n); }} /></div>
+                       <button onClick={() => removeComponent(c.id)} className="text-red-400 hover:text-red-600 p-1"><Icon name="Trash2" size={14}/></button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section>
+                <h4 className="font-bold text-slate-700 border-b border-slate-200 pb-2 mb-3 text-sm uppercase">6. Lucro & Margem</h4>
+                <div className="space-y-3 text-sm">
+                  <div><label className="block text-[10px] text-slate-500 uppercase">Reserva Técnica Falhas (%)</label><input type="number" inputMode="decimal" className="w-full border border-slate-300 rounded p-2" value={settings.technicalReservePercent} onChange={e => setSettings({...settings, technicalReservePercent: e.target.value})} /></div>
+                  <div className="flex gap-2">
+                    <div className="w-1/2">
+                      <label className="block text-[10px] text-slate-500 uppercase">Método</label>
+                      <select className="w-full border border-slate-300 rounded p-2 bg-white" value={settings.profitMethod} onChange={e => setSettings({...settings, profitMethod: e.target.value})}>
+                        <option value="markup">Markup (+%)</option>
+                        <option value="margin">Margem Real (%)</option>
+                      </select>
+                    </div>
+                    <div className="w-1/2">
+                      <label className="block text-[10px] text-slate-500 uppercase">Percentual (%)</label>
+                      <input type="number" inputMode="decimal" className="w-full border border-slate-300 rounded p-2" value={settings.profitPercent} onChange={e => setSettings({...settings, profitPercent: e.target.value})} />
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h4 className="font-bold text-slate-700 border-b border-slate-200 pb-2 mb-3 text-sm uppercase">7. Entrega</h4>
+                <div className="space-y-3 text-sm">
+                  <div><label className="block text-[10px] text-slate-500 uppercase">Método</label><input type="text" className="w-full border rounded p-2" value={delivery.method} onChange={e => setDelivery({...delivery, method: e.target.value})} /></div>
+                  <div className="flex gap-2">
+                    <div className="w-1/2"><label className="block text-[10px] text-slate-500 uppercase">Custo Real (R$)</label><input type="number" inputMode="decimal" className="w-full border rounded p-2" value={delivery.actualCost} onChange={e => setDelivery({...delivery, actualCost: e.target.value})} /></div>
+                    <div className="w-1/2"><label className="block text-[10px] text-slate-500 uppercase">Cobrado (R$)</label><input type="number" inputMode="decimal" className="w-full border rounded p-2" value={delivery.chargedValue} onChange={e => setDelivery({...delivery, chargedValue: e.target.value})} /></div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </aside>
+
+          <main className="flex-1 bg-slate-100 overflow-y-auto relative p-4 md:p-8">
+            <div className="flex justify-center mb-6 sticky top-0 z-10">
+              <div className="bg-white p-1 rounded-lg shadow-md border border-slate-200 flex gap-1">
+                <button onClick={() => setViewMode('internal')} className={`flex items-center gap-2 px-4 py-2 rounded-md font-semibold text-sm transition-all ${viewMode === 'internal' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>
+                  <Icon name="Eye" size={18} /> <span className="hidden sm:inline">VISÃO INTERNA</span><span className="sm:hidden">CÁLCULO</span>
+                </button>
+                <button onClick={() => setViewMode('customer')} className={`flex items-center gap-2 px-4 py-2 rounded-md font-semibold text-sm transition-all ${viewMode === 'customer' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>
+                  <Icon name="FileText" size={18} /> <span className="hidden sm:inline">VISÃO DO CLIENTE</span><span className="sm:hidden">ORÇAMENTO</span>
+                </button>
+              </div>
+            </div>
+
+            {viewMode === 'internal' ? (
+              <div className="space-y-6 max-w-3xl mx-auto pb-12 animate-in fade-in zoom-in-95 duration-200">
+                <div className="bg-slate-800 text-white p-6 rounded-t-xl shadow-lg">
+                  <h2 className="text-2xl font-bold flex items-center gap-2"><Icon name="Settings" size={24} className="text-blue-400" /> MEMÓRIA DE CÁLCULO</h2>
+                  <p className="text-slate-300 mt-2">Visão interna detalhada de como este preço foi calculado.</p>
+                </div>
+                <div className="bg-white rounded-b-xl shadow-lg border border-slate-200 p-6 space-y-8 mt-0">
+                  <section>
+                    <h3 className="text-lg font-bold text-slate-800 border-b-2 border-slate-100 pb-2 mb-4">1. MATERIAL</h3>
+                    <div className="space-y-2">
+                      {calc.filamentDetails.map((f, i) => (
+                        <ExpandableRow key={i} label={`Filamento ${f.color} (${f.type})`} value={formatCurrency(f.cost)}>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div><span className="block text-xs text-gray-500 uppercase font-semibold">Parâmetros</span><div>Preço do carretel: {formatCurrency(f.pricePerKg)} (1000g)</div><div>Preço por grama: {formatCurrency(f.costPerG)}/g</div></div>
+                            <div><span className="block text-xs text-gray-500 uppercase font-semibold">Cálculo</span><div>Peça: {f.weight}g + Purga: {f.purgeWeight}g = {f.totalWeight}g</div><div className="font-mono mt-1 bg-white p-2 rounded border border-gray-200 text-xs text-blue-800">{f.totalWeight} g × {formatCurrency(f.costPerG)} = {formatCurrency(f.cost)}</div></div>
+                          </div>
+                        </ExpandableRow>
+                      ))}
+                      <div className="flex justify-between items-center pt-2 font-bold text-slate-800 border-t border-slate-100 mt-2 px-2"><span>TOTAL DE FILAMENTO:</span><span>{formatCurrency(calc.totalFilamentCost)}</span></div>
+                    </div>
+                  </section>
+
+                  <section>
+                    <h3 className="text-lg font-bold text-slate-800 border-b-2 border-slate-100 pb-2 mb-4">2. IMPRESSÃO E MÁQUINA</h3>
+                    <div className="space-y-2">
+                      <ExpandableRow label="Custo de Máquina" value={formatCurrency(calc.machineCost)}><div className="font-mono bg-white p-2 rounded border border-gray-200 text-xs text-blue-800">Tempo: {formatNumber(calc.printTimeTotalHours)} h × {formatCurrency(printing.machineCostPerHour)}/h = {formatCurrency(calc.machineCost)}</div></ExpandableRow>
+                      <ExpandableRow label="Custo de Energia" value={formatCurrency(calc.energyCost)}><div className="font-mono bg-white p-2 rounded border border-gray-200 text-xs text-blue-800">Consumo: {printing.energyKwh} kWh × {formatCurrency(printing.energyTariff)}/kWh = {formatCurrency(calc.energyCost)}</div></ExpandableRow>
+                      <div className="flex justify-between items-center pt-2 font-bold text-slate-800 border-t border-slate-100 mt-2 px-2"><span>TOTAL DE IMPRESSÃO:</span><span>{formatCurrency(calc.totalPrintCost)}</span></div>
+                    </div>
+                  </section>
+
+                  <section>
+                    <h3 className="text-lg font-bold text-slate-800 border-b-2 border-slate-100 pb-2 mb-4">3. TRABALHO HUMANO</h3>
+                    <div className="space-y-2">
+                      <ExpandableRow label="Modelagem 3D" value={formatCurrency(calc.laborModeling)}><div className="font-mono bg-white p-2 rounded border border-gray-200 text-xs text-blue-800">{labor.modelingHours} h × {formatCurrency(labor.modelingRate)}/h = {formatCurrency(calc.laborModeling)}</div></ExpandableRow>
+                      <ExpandableRow label="Preparação" value={formatCurrency(calc.laborPrep)}><div className="font-mono bg-white p-2 rounded border border-gray-200 text-xs text-blue-800">{labor.prepMins} min × {formatCurrency(labor.prepRate)}/h = {formatCurrency(calc.laborPrep)}</div></ExpandableRow>
+                      <ExpandableRow label="Acabamento" value={formatCurrency(calc.laborFinishing)}><div className="font-mono bg-white p-2 rounded border border-gray-200 text-xs text-blue-800">{labor.finishingMins} min × {formatCurrency(labor.finishingRate)}/h = {formatCurrency(calc.laborFinishing)}</div></ExpandableRow>
+                      <div className="flex justify-between items-center pt-2 font-bold text-slate-800 border-t border-slate-100 mt-2 px-2"><span>TOTAL MÃO DE OBRA:</span><span>{formatCurrency(calc.totalLaborCost)}</span></div>
+                    </div>
+                  </section>
+
+                  <section>
+                    <h3 className="text-lg font-bold text-slate-800 border-b-2 border-slate-100 pb-2 mb-4">4. COMPONENTES</h3>
+                    <div className="space-y-2">
+                      {calc.compDetails.map((c, i) => (<ExpandableRow key={i} label={c.name} value={formatCurrency(c.cost)}><div className="font-mono bg-white p-2 rounded border border-gray-200 text-xs text-blue-800">{c.qty} unid. × {formatCurrency(c.unitPrice)} = {formatCurrency(c.cost)}</div></ExpandableRow>))}
+                      <div className="flex justify-between items-center pt-2 font-bold text-slate-800 border-t border-slate-100 mt-2 px-2"><span>TOTAL COMPONENTES:</span><span>{formatCurrency(calc.totalComponentsCost)}</span></div>
+                    </div>
+                  </section>
+
+                  <section className="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+                    <h3 className="text-lg font-bold text-blue-900 mb-2">5. RESERVA TÉCNICA E CUSTO REAL</h3>
+                    <ExpandableRow label={<span className="font-semibold text-blue-800">Subtotal de Produção</span>} value={<span className="font-semibold text-blue-800">{formatCurrency(calc.productionSubtotal)}</span>}><span className="text-blue-800">Soma de: Material + Impressão + Mão de Obra + Componentes</span></ExpandableRow>
+                    <ExpandableRow label={`Reserva para Falhas (${settings.technicalReservePercent}%)`} value={formatCurrency(calc.reserveValue)}><div className="font-mono bg-white p-2 rounded border border-blue-200 text-xs text-blue-900">{formatCurrency(calc.productionSubtotal)} × {settings.technicalReservePercent}% = {formatCurrency(calc.reserveValue)}</div></ExpandableRow>
+                    <div className="flex justify-between items-center pt-3 font-bold text-xl text-blue-900 border-t border-blue-200 mt-3 px-2"><span>CUSTO REAL (UNITÁRIO):</span><span>{formatCurrency(calc.realCostUnit)}</span></div>
+                  </section>
+
+                  <section>
+                    <h3 className="text-lg font-bold text-slate-800 border-b-2 border-slate-100 pb-2 mb-4">6. LUCRO E FORMAÇÃO DE PREÇO</h3>
+                    <div className="space-y-2">
+                      <ExpandableRow label={`Lucro Desejado (${settings.profitPercent}% via ${settings.profitMethod.toUpperCase()})`} value={formatCurrency(calc.profitUnit)}>
+                        <div className="font-mono bg-white p-2 rounded border border-gray-200 text-xs text-blue-800">
+                          {settings.profitMethod === 'markup' ? `Preço = Custo × (1 + ${settings.profitPercent}%)` : `Preço = Custo ÷ (1 - ${settings.profitPercent}%)`} = {formatCurrency(calc.unitPrice)}<br/>
+                          Lucro = Preço - Custo = {formatCurrency(calc.profitUnit)}
+                        </div>
+                      </ExpandableRow>
+                      <div className="flex justify-between items-center pt-2 font-bold text-slate-800 border-t border-slate-100 mt-2 px-2"><span>PREÇO SUGERIDO (UNITÁRIO):</span><span className="text-lg">{formatCurrency(calc.unitPrice)}</span></div>
+                    </div>
+                  </section>
+
+                  <section className="bg-slate-900 text-white p-6 rounded-xl shadow-inner mt-8">
+                    <h3 className="text-xl font-bold mb-4 flex items-center gap-2 border-b border-slate-700 pb-3">8. PREÇO FINAL E INDICADORES</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                      <div className="space-y-3 text-sm">
+                        <div className="flex justify-between border-b border-slate-700 pb-1"><span className="text-slate-400">Produtos ({calc.qty}x)</span><span>{formatCurrency(calc.totalProductsCharged)}</span></div>
+                        <div className="flex justify-between border-b border-slate-700 pb-1"><span className="text-slate-400">Entrega</span><span>{formatCurrency(calc.deliveryCharged)}</span></div>
+                        <div className="flex justify-between text-xl font-bold text-emerald-400 pt-2"><span>TOTAL DO PEDIDO</span><span>{formatCurrency(calc.totalOrderValue)}</span></div>
+                      </div>
+                      <div className="bg-slate-800 p-4 rounded-lg space-y-3 text-sm border border-slate-700">
+                        <h4 className="text-slate-300 font-bold uppercase text-xs tracking-wider mb-2">Análise de Lucratividade</h4>
+                        <div className="flex justify-between"><span className="text-slate-400">Custo Total (Prod + Frete)</span><span className="text-red-300">{formatCurrency(calc.totalCostWithDelivery)}</span></div>
+                        <div className="flex justify-between font-bold"><span className="text-slate-300">Lucro Total Estimado</span><span className="text-emerald-400">{formatCurrency(calc.totalProfit)}</span></div>
+                        <div className="flex justify-between font-bold border-t border-slate-600 pt-2 mt-2"><span className="text-slate-300">Margem Real do Pedido</span><span className={calc.realMarginPercent >= 20 ? 'text-emerald-400' : 'text-yellow-400'}>{formatNumber(calc.realMarginPercent, 1)}%</span></div>
+                      </div>
+                    </div>
+                    <div className="mt-6 pt-4 border-t border-slate-700">
+                      <h4 className="font-bold text-sm text-slate-300 uppercase tracking-wider mb-3">Auditoria Automática</h4>
+                      {renderAudit()}
+                    </div>
+                  </section>
+                </div>
+              </div>
+            ) : (
+              <div className="max-w-3xl mx-auto pb-12 animate-in fade-in zoom-in-95 duration-200">
+                <div className="bg-white p-6 md:p-10 rounded-xl shadow-lg border border-gray-200">
+                  <div className="flex justify-between items-start border-b-2 border-gray-800 pb-6 mb-8">
+                    <div>
+                      <h1 className="text-3xl font-black text-gray-900 tracking-tight">ORÇAMENTO</h1>
+                      <p className="text-gray-500 mt-1">Ref: #{Math.floor(Math.random() * 10000).toString().padStart(4, '0')} • Data: {new Date().toLocaleDateString('pt-BR')}</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-xl text-gray-900">J.3D Studio</div>
+                      <p className="text-sm text-gray-500 mt-1">Impressão 3D Profissional</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Para</h3>
+                      <p className="font-semibold text-gray-800">Cliente Exemplo</p>
+                      <p className="text-sm text-gray-600">contato@exemplo.com</p>
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Condições</h3>
+                      <ul className="text-sm text-gray-600 space-y-1">
+                        <li><span className="font-semibold text-gray-700">Prazo:</span> {quoteDetails.deadline}</li>
+                        <li><span className="font-semibold text-gray-700">Validade:</span> {quoteDetails.validityDays} dias</li>
+                        <li><span className="font-semibold text-gray-700">Pagamento:</span> {quoteDetails.paymentMethod}</li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left mb-8 border-collapse min-w-[500px]">
+                      <thead>
+                        <tr className="border-b-2 border-gray-200">
+                          <th className="py-3 px-2 font-bold text-gray-700 uppercase text-xs tracking-wider">Item / Descrição</th>
+                          <th className="py-3 px-2 font-bold text-gray-700 uppercase text-xs tracking-wider text-center">Qtd</th>
+                          <th className="py-3 px-2 font-bold text-gray-700 uppercase text-xs tracking-wider text-right">V. Unitário</th>
+                          <th className="py-3 px-2 font-bold text-gray-700 uppercase text-xs tracking-wider text-right">Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-gray-100">
+                          <td className="py-4 px-2"><div className="font-bold text-gray-800">{quoteDetails.productName}</div><div className="text-sm text-gray-500 mt-1">{quoteDetails.description}</div></td>
+                          <td className="py-4 px-2 text-center text-gray-800 font-medium">{calc.qty}</td>
+                          <td className="py-4 px-2 text-right text-gray-800 font-medium">{formatCurrency(calc.unitPrice)}</td>
+                          <td className="py-4 px-2 text-right text-gray-900 font-bold">{formatCurrency(calc.totalProductsCharged)}</td>
+                        </tr>
+                        <tr className="border-b border-gray-100 bg-gray-50">
+                          <td className="py-4 px-2"><div className="font-bold text-gray-800">Entrega</div><div className="text-sm text-gray-500 mt-1">{delivery.method}</div></td>
+                          <td className="py-4 px-2 text-center text-gray-800 font-medium">-</td>
+                          <td className="py-4 px-2 text-right text-gray-800 font-medium">-</td>
+                          <td className="py-4 px-2 text-right text-gray-900 font-bold">{formatCurrency(calc.deliveryCharged)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="flex justify-end">
+                    <div className="w-full md:w-64 space-y-3">
+                      <div className="flex justify-between text-gray-600"><span>Subtotal Itens</span><span>{formatCurrency(calc.totalProductsCharged)}</span></div>
+                      <div className="flex justify-between text-gray-600"><span>Frete</span><span>{formatCurrency(calc.deliveryCharged)}</span></div>
+                      <div className="flex justify-between text-xl font-black text-gray-900 border-t-2 border-gray-800 pt-3 mt-3"><span>TOTAL</span><span>{formatCurrency(calc.totalOrderValue)}</span></div>
+                    </div>
+                  </div>
+                  <div className="mt-12 p-4 bg-gray-50 rounded text-xs text-gray-500 text-center border border-gray-200">
+                    Este orçamento não inclui custos não mencionados explicitamente. A produção inicia apenas após a confirmação do pagamento acordado.
+                  </div>
+                </div>
+              </div>
+            )}
+          </main>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
